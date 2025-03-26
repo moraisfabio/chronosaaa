@@ -6,7 +6,7 @@ class OpenAIClient:
 
     def get_assistant_response(self, message):
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "Você é um assistente útil."},
                 {"role": "user", "content": message}

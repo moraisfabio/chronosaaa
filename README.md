@@ -13,5 +13,5 @@ this is the main project in my company
 
 3. **Executar o servidor Flask**:
     ```sh
-    python chronosai/run.py
+    python chronosaaa/run.py
     ```
