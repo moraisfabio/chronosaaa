@@ -55,6 +55,9 @@ def webhook():
     sender_id = messages['from']
     user_name = value['contacts'][0]['profile']['name']
 
+    # Variável para armazenar o nome do serviço
+    service_name = None
+
     if incoming_msg:
         # Check for greetings and keywords
         greetings = ["oi", "boa tarde", "bom dia", "boa noite", "ola", "olá"]
@@ -65,25 +68,26 @@ def webhook():
             send_whatsapp_message(sender_id, reply)
             # Verifique se a mensagem contém uma das palavras-chave após o reply
             if any(keyword in incoming_msg.lower() for keyword in keywords):
-                keyword_found = next(keyword for keyword in keywords if keyword in incoming_msg.lower())
-                send_subservices_menu(sender_id, keyword_found)
+                service_name = next(keyword for keyword in keywords if keyword in incoming_msg.lower())
+                send_subservices_menu(sender_id, service_name)
         elif any(keyword in incoming_msg.lower() for keyword in keywords):
             # Send interactive menu for services
-            keyword_found = next(keyword for keyword in keywords if keyword in incoming_msg.lower())
-            send_subservices_menu(sender_id, keyword_found)
+            service_name = next(keyword for keyword in keywords if keyword in incoming_msg.lower())
+            send_subservices_menu(sender_id, service_name)
         elif incoming_msg.lower() in ["cabelo", "manicure"]:
             # Send subservices menu based on the chosen service
-            send_subservices_menu(sender_id, incoming_msg.lower())
+            service_name = incoming_msg.lower()
+            send_subservices_menu(sender_id, service_name)
         elif incoming_msg.lower() in ["corte", "serum", "escova", "unha_padrao", "alongamento"]:
             # Check availability for the chosen subservice
-            service_time = mongo_client_caller.get_service_time(incoming_msg.lower())
-            available_slots = mongo_client_caller.check_availability(incoming_msg.lower(), service_time)
-            send_available_slots_menu(sender_id, incoming_msg.lower(), available_slots)
+            service_name = incoming_msg.lower()
+            service_time = mongo_client_caller.get_service_time(service_name)
+            available_slots = mongo_client_caller.check_availability(service_name, service_time)
+            send_available_slots_menu(sender_id, service_name, available_slots)
         elif incoming_msg.lower().startswith("confirmar"):
             # Extract date and hour from the message
             _, date, hour = incoming_msg.split()
-            service_name = "corte"  # Placeholder, you should extract the actual service name from the context
-            service_value = 50  # Placeholder, you should extract the actual service value from the database
+            service_value = mongo_client_caller.get_service_value(service_name) 
             service_time = mongo_client_caller.get_service_time(service_name)
             mongo_client_caller.save_appointment(user_name, sender_id, service_name, service_value, service_time, date, hour)
             send_whatsapp_message(sender_id, f"Seu agendamento para {service_name} foi confirmado para {date} às {hour}. Obrigado e tenha um bom dia!")

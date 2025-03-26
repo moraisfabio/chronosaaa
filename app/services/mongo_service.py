@@ -16,6 +16,10 @@ class MongoDBClient:
         service = collection.find_one({"name": service_name})
         return service['role_service'] if service else None
 
+    def get_service_value(self, service_name):
+        service = self.db.services.find_one({"name": service_name})
+        return service["value"] if service else None
+
     def check_availability(self, service_name, service_time):
         # Obtenha o papel (role) do serviço
         role = self.get_service_role(service_name)
