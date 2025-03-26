@@ -1,8 +1,7 @@
 from flask import Flask, Blueprint, request, jsonify
-import requests
 from app.services.openai_service import OpenAIClient
 from app.services.mongo_service import MongoDBClient
-from app.utils.whatsapp_utils import send_whatsapp_message, send_interactive_menu, send_subservices_menu, send_available_slots_menu
+from app.utils.whatsapp_utils import send_whatsapp_message, send_subservices_menu, send_available_slots_menu, send_confirmation_menu
 from dotenv import load_dotenv
 import os
 
@@ -64,7 +63,7 @@ def webhook():
         keywords = ["agendar", "horário", "cabelo", "unha", "arrumar cabelo", "fazer unha"]
 
         if any(greeting in incoming_msg.lower() for greeting in greetings):
-            reply = "Olá, eu sou o assistente do Studio Nice Hair, como posso ajudar?"
+            reply = "Olá, eu sou o assistente do Studio X, como posso ajudar?"
             send_whatsapp_message(sender_id, reply)
             # Verifique se a mensagem contém uma das palavras-chave após o reply
             if any(keyword in incoming_msg.lower() for keyword in keywords):
@@ -74,16 +73,16 @@ def webhook():
             # Send interactive menu for services
             service_name = next(keyword for keyword in keywords if keyword in incoming_msg.lower())
             send_subservices_menu(sender_id, service_name)
-        elif incoming_msg.lower() in ["cabelo", "manicure"]:
-            # Send subservices menu based on the chosen service
-            service_name = incoming_msg.lower()
-            send_subservices_menu(sender_id, service_name)
         elif incoming_msg.lower() in ["corte", "serum", "escova", "unha_padrao", "alongamento"]:
             # Check availability for the chosen subservice
             service_name = incoming_msg.lower()
             service_time = mongo_client_caller.get_service_time(service_name)
             available_slots = mongo_client_caller.check_availability(service_name, service_time)
             send_available_slots_menu(sender_id, service_name, available_slots)
+        elif incoming_msg.lower().startswith("escolher"):
+            # Extract date and hour from the message
+            _, date, hour = incoming_msg.split()
+            send_confirmation_menu(sender_id, service_name, date, hour)
         elif incoming_msg.lower().startswith("confirmar"):
             # Extract date and hour from the message
             _, date, hour = incoming_msg.split()
@@ -91,6 +90,11 @@ def webhook():
             service_time = mongo_client_caller.get_service_time(service_name)
             mongo_client_caller.save_appointment(user_name, sender_id, service_name, service_value, service_time, date, hour)
             send_whatsapp_message(sender_id, f"Seu agendamento para {service_name} foi confirmado para {date} às {hour}. Obrigado e tenha um bom dia!")
+        elif incoming_msg.lower().startswith("voltar"):
+            # Resend available slots menu
+            service_time = mongo_client_caller.get_service_time(service_name)
+            available_slots = mongo_client_caller.check_availability(service_name, service_time)
+            send_available_slots_menu(sender_id, service_name, available_slots)
         else:
             # Pass the user's message to the Assistants API
             reply = openai_client.get_assistant_response(incoming_msg)

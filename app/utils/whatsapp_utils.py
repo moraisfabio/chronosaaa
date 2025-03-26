@@ -30,43 +30,6 @@ def send_whatsapp_message(recipient_id, message):
     response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
     return response.json()
 
-def send_interactive_menu(recipient_id):
-    headers = {
-        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "messaging_product": "whatsapp",
-        "to": recipient_id,
-        "type": "interactive",
-        "interactive": {
-            "type": "button",
-            "body": {
-                "text": "Por favor, escolha um serviço:"
-            },
-            "action": {
-                "buttons": [
-                    {
-                        "type": "reply",
-                        "reply": {
-                            "id": "cabelo",
-                            "title": "Cabelo"
-                        }
-                    },
-                    {
-                        "type": "reply",
-                        "reply": {
-                            "id": "unha",
-                            "title": "Unha"
-                        }
-                    }
-                ]
-            }
-        }
-    }
-    response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
-    return response.json()
-
 def send_subservices_menu(recipient_id, service):
     headers = {
         "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
@@ -129,3 +92,11 @@ def send_available_slots_menu(recipient_id, service_name, available_slots):
     }
     response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
     return response.json()
+
+def send_confirmation_menu(sender_id, service_name, date, hour):
+    message = f"Você escolheu {service_name} para {date} às {hour}. Deseja confirmar o agendamento ou voltar para escolher outra data?"
+    options = [
+        {"title": "Confirmar", "id": f"confirmar {date} {hour}"},
+        {"title": "Voltar", "id": "voltar"}
+    ]
+    send_whatsapp_message(sender_id, message, options)
