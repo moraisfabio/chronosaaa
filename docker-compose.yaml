@@ -1,0 +1,33 @@
+services:
+  mongodbchronosai:
+        container_name: mongodbchronosai
+        restart: always
+        image: mongo
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: root
+            MONGO_INITDB_ROOT_PASSWORD: chronosaipass
+            MONGO_INITDB_DATABASE: dbchronosai
+        networks:
+            chronosai:
+                ipv4_address: 172.15.0.2
+        volumes:
+            - "mongo-data-chronosai:/data/db"
+            - "mongo-config-chronosai:/etc/mongod.conf"
+        ulimits:
+            nproc: 990000
+            nofile:
+                soft: 990000
+                hard: 990000
+        ports:
+            - 27017:27017
+
+volumes:
+  mongo-config-chronosai:
+  mongo-data-chronosai:
+
+networks:
+  chronosai:
+    ipam:
+      driver: default
+      config: 
+        - subnet: 172.15.0.0/24 
