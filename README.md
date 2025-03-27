@@ -1,5 +1,5 @@
 # chronosaaa
-this is the main project in my company
+this is the first project in my company
 
 
 1. **Instalar as dependências necessárias**:

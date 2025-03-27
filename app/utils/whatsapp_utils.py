@@ -67,6 +67,9 @@ def send_available_slots_menu(recipient_id, service_name, available_slots):
         "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
+    
+    message_body = f"Aqui estão os horários disponíveis para o serviço {service_name.capitalize()}:\n"
+
     buttons = []
     for slot in available_slots:
         buttons.append({
@@ -83,13 +86,14 @@ def send_available_slots_menu(recipient_id, service_name, available_slots):
         "interactive": {
             "type": "button",
             "body": {
-                "text": f"Os horários disponíveis para {service_name} são:"
+                "text": message_body
             },
             "action": {
                 "buttons": buttons
             }
         }
     }
+
     response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
     return response.json()
 

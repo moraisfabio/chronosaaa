@@ -1,6 +1,7 @@
 from pymongo import MongoClient
 import datetime
 from datetime import datetime, timedelta
+import logging
 
 class MongoDBClient:
     def __init__(self, uri, db_name):
@@ -27,7 +28,6 @@ class MongoDBClient:
         if not role:
             return []
 
-        # Obtenha o turno de trabalho (work shift) com base no papel (role)
         work_shift_collection = self.db['work_shift']
         work_shift = work_shift_collection.find_one({"role": role})
         if not work_shift:
@@ -38,12 +38,10 @@ class MongoDBClient:
         available_slots = []
         current_date = datetime.now()
 
-        # Verifique a disponibilidade para os próximos 7 dias
         for day in range(7):
             date = (current_date + timedelta(days=day)).strftime('%Y-%m-%d')
             day_start_time = start_time
 
-            # Se for o dia atual, comece a partir do horário atual
             if day == 0:
                 current_time = current_date.time()
                 if current_time > start_time.time():
@@ -59,11 +57,9 @@ class MongoDBClient:
                     "date": date,
                     "$or": [
                         {
-                            # O horário do agendamento começa antes do término do slot atual
                             "hour": {"$lt": current_slot_end.strftime("%H:%M")}
                         },
                         {
-                            # O horário do agendamento termina depois do início do slot atual
                             "hour": {"$gte": current_slot_start.strftime("%H:%M")}
                         }
                     ]
@@ -100,9 +96,17 @@ class MongoDBClient:
         collection.insert_one(appointment_data)
 
     def get_appointment(self, sender_id):
-        """Retrieve the appointment for a specific user."""
         return self.db.appointments.find_one({"user_phone": sender_id})
 
     def delete_appointment(self, sender_id):
-        """Delete the appointment for a specific user."""
         self.db.appointments.delete_one({"user_phone": sender_id})
+
+    def update_appointment(self, sender_id, new_date, new_hour):
+        try:
+            self.db['appointments'].update_one(
+                {"sender_id": sender_id},
+                {"$set": {"date": new_date, "hour": new_hour}}
+            )
+        except Exception as e:
+            logging.error(f"Erro ao atualizar agendamento no MongoDB: {e}")
+            raise
