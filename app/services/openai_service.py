@@ -5,7 +5,8 @@ class OpenAIClient:
         openai.api_key = api_key
 
     def get_assistant_response(self, message):
-        response = openai.ChatCompletion.create(
+        client = openai.OpenAI()  # Create a client instance
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "Você é um assistente útil."},
