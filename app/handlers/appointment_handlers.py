@@ -121,3 +121,38 @@ def handle_change_appointment(sender_id):
         logging.error(f"Erro ao processar alteração de agendamento: {e}")
         # return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao acessar os dados do agendamento. Tente novamente mais tarde.")
         return send_test_message(sender_id, "Desculpe, ocorreu um erro ao acessar os dados do agendamento. Tente novamente mais tarde.")
+    
+def send_reminders_for_tomorrow():
+    try:
+        # Obter a data de amanhã (D+1)
+        tomorrow_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+
+        # Buscar agendamentos para a data de amanhã
+        appointments = mongo_client_caller.db['appointments'].find({"date": tomorrow_date})
+
+        # Verificar se há agendamentos
+        if not appointments:
+            logging.info(f"Não há agendamentos para enviar lembretes em {tomorrow_date}.")
+            return
+
+        # Enviar mensagens de lembrete para cada agendamento
+        for appointment in appointments:
+            user_phone = appointment["user_phone"]
+            service_name = appointment["service_name"]
+            appointment_time = appointment["hour"]
+
+            # Construir a mensagem de lembrete
+            reminder_message = (
+                f"Olá! Este é um lembrete do Studio X.\n"
+                f"Você tem um agendamento para o serviço '{service_name}' amanhã, "
+                f"às {appointment_time}.\n"
+                f"Estamos ansiosos para atendê-lo!"
+            )
+
+            # Enviar a mensagem pelo WhatsApp
+            send_test_message(user_phone, reminder_message)
+            # send_whatsapp_message(user_phone, reminder_message)
+
+        logging.info(f"Lembretes enviados para os agendamentos de {tomorrow_date}.")
+    except Exception as e:
+        logging.error(f"Erro ao enviar lembretes para os agendamentos de amanhã: {e}")

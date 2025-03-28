@@ -1,3 +1,4 @@
+import logging
 import requests
 import os
 from dotenv import load_dotenv
@@ -28,6 +29,10 @@ def send_whatsapp_message(recipient_id, message):
         }
     }
     response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
+    if response.status_code == 200:
+        logging.info(f"Mensagem enviada com sucesso para {recipient_id}.")
+    else:
+        logging.error(f"Erro ao enviar mensagem para {recipient_id}: {response.text}")
     return response.json()
 
 def send_subservices_menu(recipient_id, service):
@@ -60,6 +65,10 @@ def send_subservices_menu(recipient_id, service):
         }
     }
     response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
+    if response.status_code == 200:
+        logging.info(f"Mensagem enviada com sucesso para {recipient_id}.")
+    else:
+        logging.error(f"Erro ao enviar mensagem para {recipient_id}: {response.text}")
     return response.json()
 
 def send_available_slots_menu(recipient_id, service_name, available_slots):
@@ -95,6 +104,10 @@ def send_available_slots_menu(recipient_id, service_name, available_slots):
     }
 
     response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
+    if response.status_code == 200:
+        logging.info(f"Mensagem enviada com sucesso para {recipient_id}.")
+    else:
+        logging.error(f"Erro ao enviar mensagem para {recipient_id}: {response.text}")
     return response.json()
 
 def send_confirmation_menu(sender_id, service_name, date, hour):
