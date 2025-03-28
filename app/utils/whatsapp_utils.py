@@ -40,7 +40,9 @@ def send_subservices_menu(recipient_id, service):
         "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
-    services = mongo_client_caller.db['services'].find({"name": {"$regex": service, "$options": "i"}})
+    if service == "unha":
+        service = "manicure"
+    services = mongo_client_caller.db['services'].find({"role_service": {"$regex": service, "$options": "i"}})
     buttons = []
     for svc in services:
         buttons.append({
