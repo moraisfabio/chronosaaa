@@ -3,3 +3,4 @@ requests
 openai
 pymongo
 python-dotenv
+apscheduler
