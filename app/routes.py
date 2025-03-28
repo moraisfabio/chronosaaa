@@ -1,8 +1,8 @@
 from flask import Flask, Blueprint, request, jsonify
 from app.services.openai_service import OpenAIClient
 from app.services.mongo_service import MongoDBClient
-#from app.utils.whatsapp_utils import send_whatsapp_message, send_subservices_menu
-from app.utils.test_utils import send_test_message, send_test_subservices_menu
+from app.utils.whatsapp_utils import send_whatsapp_message, send_subservices_menu
+# from app.utils.test_utils import send_test_message, send_test_subservices_menu
 from dotenv import load_dotenv
 import os
 import logging
@@ -74,14 +74,14 @@ def webhook():
 
             if any(greeting in incoming_msg.lower() for greeting in greetings):
                 reply = "Olá, eu sou o assistente do Studio X, como posso ajudar?"
-                #return jsonify(send_whatsapp_message(sender_id, reply))
-                return jsonify(send_test_message(sender_id, reply))
+                return jsonify(send_whatsapp_message(sender_id, reply))
+                # return jsonify(send_test_message(sender_id, reply))
             elif any(keyword in incoming_msg.lower() for keyword in cancel_keywords):
                 return jsonify(handle_cancel_appointment(sender_id))
             elif any(keyword in incoming_msg.lower() for keyword in keywords):
                 service_name = next(keyword for keyword in keywords if keyword in incoming_msg.lower())
-                #return jsonify(send_subservices_menu(sender_id, service_name))
-                return jsonify(send_test_subservices_menu(sender_id, service_name))
+                return jsonify(send_subservices_menu(sender_id, service_name))
+                # return jsonify(send_test_subservices_menu(sender_id, service_name))
             elif incoming_msg.lower() in ["corte", "serum", "escova", "unha_padrao", "alongamento"]:
                 return jsonify(handle_service_availability(sender_id, incoming_msg.lower()))
             elif incoming_msg.lower() == "sim":
@@ -90,12 +90,12 @@ def webhook():
                 return jsonify(handle_change_appointment(sender_id))
             else:
                 reply = openai_client.get_assistant_response(incoming_msg)
-                #return jsonify(send_whatsapp_message(sender_id, reply))
-                return jsonify(send_test_message(sender_id, reply))
+                return jsonify(send_whatsapp_message(sender_id, reply))
+                # return jsonify(send_test_message(sender_id, reply))
         except Exception as e:
             logging.error(f"Erro inesperado no processamento da mensagem: {e}")
-            #return jsonify(send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro inesperado. Tente novamente mais tarde."))
-            return jsonify(send_test_message(sender_id, "Desculpe, ocorreu um erro inesperado. Tente novamente mais tarde."))
+            return jsonify(send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro inesperado. Tente novamente mais tarde."))
+            # return jsonify(send_test_message(sender_id, "Desculpe, ocorreu um erro inesperado. Tente novamente mais tarde."))
 
 if __name__ == '__main__':
     app.register_blueprint(routes_bp)
