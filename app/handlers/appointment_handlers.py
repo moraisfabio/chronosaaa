@@ -3,8 +3,8 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from app.services.mongo_service import MongoDBClient
-# from app.utils.test_utils import send_test_message, send_test_available_slots_menu
-from app.utils.whatsapp_utils import send_whatsapp_message, send_available_slots_menu
+from app.utils.test_utils import send_test_message, send_test_available_slots_menu, send_test_available_employees_menu
+# from app.utils.whatsapp_utils import send_whatsapp_message, send_available_slots_menu
 
 load_dotenv()
 # Inicialize o cliente MongoDB
@@ -27,18 +27,18 @@ def handle_cancel_appointment(sender_id):
 
             if appointment_date - current_time > timedelta(hours=48):
                 mongo_client_caller.delete_appointment(sender_id)
-                return send_whatsapp_message(sender_id, "Seu agendamento foi cancelado com sucesso.")
-                # return send_test_message(sender_id, "Seu agendamento foi cancelado com sucesso.")
+                # return send_whatsapp_message(sender_id, "Seu agendamento foi cancelado com sucesso.")
+                return send_test_message(sender_id, "Seu agendamento foi cancelado com sucesso.")
             else:
-                return send_whatsapp_message(sender_id, "Desculpe, não é possível cancelar o agendamento com menos de 48 horas de antecedência.")
-                # return send_test_message(sender_id, "Desculpe, não é possível cancelar o agendamento com menos de 48 horas de antecedência.")
+                # return send_whatsapp_message(sender_id, "Desculpe, não é possível cancelar o agendamento com menos de 48 horas de antecedência.")
+                return send_test_message(sender_id, "Desculpe, não é possível cancelar o agendamento com menos de 48 horas de antecedência.")
         else:
-            return send_whatsapp_message(sender_id, "Você não possui nenhum agendamento para cancelar.")
-            # return send_test_message(sender_id, "Você não possui nenhum agendamento para cancelar.")
+            # return send_whatsapp_message(sender_id, "Você não possui nenhum agendamento para cancelar.")
+            return send_test_message(sender_id, "Você não possui nenhum agendamento para cancelar.")
     except Exception as e:
         logging.error(f"Erro ao processar cancelamento de agendamento: {e}")
-        return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao acessar os dados do agendamento. Tente novamente mais tarde.")
-        # return send_test_message(sender_id, "Desculpe, ocorreu um erro ao acessar os dados do agendamento. Tente novamente mais tarde.")
+        # return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao acessar os dados do agendamento. Tente novamente mais tarde.")
+        return send_test_message(sender_id, "Desculpe, ocorreu um erro ao acessar os dados do agendamento. Tente novamente mais tarde.")
 
 def handle_service_availability(sender_id, service_name):
     try:
@@ -51,33 +51,47 @@ def handle_service_availability(sender_id, service_name):
         name_service[sender_id] = service_name
 
         # Enviar o menu interativo com os horários disponíveis
-        return send_available_slots_menu(sender_id, service_name, available_slots)
-        # return send_test_available_slots_menu(sender_id, service_name, available_slots)
+        # return send_available_slots_menu(sender_id, service_name, available_slots)
+        return send_test_available_slots_menu(sender_id, service_name, available_slots)
     except Exception as e:
         logging.error(f"Erro ao verificar disponibilidade de horários: {e}")
-        return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao verificar os horários disponíveis. Tente novamente mais tarde.")
-        # return send_test_message(sender_id, "Desculpe, ocorreu um erro ao verificar os horários disponíveis. Tente novamente mais tarde.")
+        # return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao verificar os horários disponíveis. Tente novamente mais tarde.")
+        return send_test_message(sender_id, "Desculpe, ocorreu um erro ao verificar os horários disponíveis. Tente novamente mais tarde.")
 
-def handle_confirm_appointment(sender_id, user_name):
+def handle_confirm_appointment(sender_id, user_name, selected_employee):
     try:
+        # Recuperar o horário selecionado e o colaborador escolhido
         selected_slot = selected_slots.get(sender_id)
-        if selected_slot:
+
+        if selected_slot and selected_employee:
             date = selected_slot["date"]
             hour = selected_slot["time"]
             service_name = name_service.get(sender_id)
             service_value = mongo_client_caller.get_service_value(service_name)
             service_time = mongo_client_caller.get_service_time(service_name)
 
-            mongo_client_caller.save_appointment(user_name, sender_id, service_name, service_value, service_time, date, hour)
-            return send_whatsapp_message(sender_id, f"Seu agendamento para {service_name} foi confirmado para {date} às {hour}. Obrigado e tenha um bom dia!")
-            # return send_test_message(sender_id, f"Seu agendamento para {service_name} foi confirmado para {date} às {hour}. Obrigado e tenha um bom dia!")
+            # Salvar o agendamento no banco de dados com o nome do colaborador
+            mongo_client_caller.save_appointment(
+                user_name=user_name,
+                user_phone=sender_id,
+                service_name=service_name,
+                service_value=service_value,
+                service_time=service_time,
+                date=date,
+                hour=hour,
+                employee_name=selected_employee
+            )
+
+            # Enviar mensagem de confirmação para o cliente
+            return send_test_message(
+                sender_id,
+                f"Seu agendamento para {service_name} foi confirmado para {date} às {hour} com o profissional {selected_employee}. Obrigado e tenha um bom dia!"
+            )
         else:
-            return send_whatsapp_message(sender_id, "Não foi possível confirmar o agendamento. Por favor, selecione um horário primeiro.")
-            # return send_test_message(sender_id, "Não foi possível confirmar o agendamento. Por favor, selecione um horário primeiro.")
+            return send_test_message(sender_id, "Não foi possível confirmar o agendamento. Por favor, selecione um horário e um profissional primeiro.")
     except Exception as e:
         logging.error(f"Erro ao salvar agendamento: {e}")
-        return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao salvar o agendamento. Tente novamente mais tarde.")
-        # return send_test_message(sender_id, "Desculpe, ocorreu um erro ao salvar o agendamento. Tente novamente mais tarde.")
+        return send_test_message(sender_id, "Desculpe, ocorreu um erro ao salvar o agendamento. Tente novamente mais tarde.")
 
 def handle_change_appointment(sender_id):
     try:
@@ -107,22 +121,22 @@ def handle_change_appointment(sender_id):
                 slots_message += "Por favor, escolha o número correspondente ao novo horário desejado."
 
                 # Enviar a mensagem com os horários disponíveis
-                return send_whatsapp_message(sender_id, slots_message)
-                # return send_test_message(sender_id, slots_message)
+                # return send_whatsapp_message(sender_id, slots_message)
+                return send_test_message(sender_id, slots_message)
             else:
                 # Não é possível alterar com menos de 48 horas de antecedência
-                return send_whatsapp_message(sender_id, "Desculpe, não é possível alterar o agendamento com menos de 48 horas de antecedência.")
-                # return send_test_message(sender_id, "Desculpe, não é possível alterar o agendamento com menos de 48 horas de antecedência.")
+                # return send_whatsapp_message(sender_id, "Desculpe, não é possível alterar o agendamento com menos de 48 horas de antecedência.")
+                return send_test_message(sender_id, "Desculpe, não é possível alterar o agendamento com menos de 48 horas de antecedência.")
         else:
             # Caso não exista um agendamento para o cliente
-            return send_whatsapp_message(sender_id, "Você não possui nenhum agendamento para alterar.")
-            # return send_test_message(sender_id, "Você não possui nenhum agendamento para alterar.")
+            # return send_whatsapp_message(sender_id, "Você não possui nenhum agendamento para alterar.")
+            return send_test_message(sender_id, "Você não possui nenhum agendamento para alterar.")
     except Exception as e:
         logging.error(f"Erro ao processar alteração de agendamento: {e}")
-        return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao acessar os dados do agendamento. Tente novamente mais tarde.")
-        # return send_test_message(sender_id, "Desculpe, ocorreu um erro ao acessar os dados do agendamento. Tente novamente mais tarde.")
+        # return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao acessar os dados do agendamento. Tente novamente mais tarde.")
+        return send_test_message(sender_id, "Desculpe, ocorreu um erro ao acessar os dados do agendamento. Tente novamente mais tarde.")
     
-def send_reminders_for_tomorrow():
+def handle_send_reminders_for_tomorrow():
     try:
         # Obter a data de amanhã (D+1)
         tomorrow_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -150,9 +164,51 @@ def send_reminders_for_tomorrow():
             )
 
             # Enviar a mensagem pelo WhatsApp
-            # send_test_message(user_phone, reminder_message)
-            send_whatsapp_message(user_phone, reminder_message)
+            send_test_message(user_phone, reminder_message)
+            # send_whatsapp_message(user_phone, reminder_message)
 
         logging.info(f"Lembretes enviados para os agendamentos de {tomorrow_date}.")
     except Exception as e:
         logging.error(f"Erro ao enviar lembretes para os agendamentos de amanhã: {e}")
+
+def handle_get_employee(sender_id, service_type):
+    # Buscar colaboradores com o role correspondente
+    try:
+        if service_type == "unha":
+            service_type = "manicure"
+        
+        employees = mongo_client_caller.db['employee'].find({"role": {"$regex": service_type, "$options": "i"}})
+
+        # Verificar se há colaboradores disponíveis
+        if not employees:
+            return send_test_message(sender_id, f"Desculpe, não encontramos profissionais disponíveis para {service_type} no momento.")
+        # Enviar o menu interativo com os profissionais disponíveis
+        return send_test_available_employees_menu(sender_id, employees)
+        return ""
+    except Exception as e:
+        logging.error(f"Erro ao buscar profissionais para {service_type}: {e}")
+        return send_test_message(sender_id, "Desculpe, ocorreu um erro ao buscar os profissionais disponíveis. Tente novamente mais tarde.")
+    
+def handle_get_services():
+    # Obter todos os serviços disponíveis
+    try:
+        services = mongo_client_caller.db['services'].find()
+        return services
+    except Exception as e:
+        logging.error(f"Erro ao buscar serviços: {e}")
+        return []
+        # return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao buscar os serviços disponíveis. Tente novamente mais tarde.")
+
+def handle_get_role_services():
+    try:
+        services = mongo_client_caller.db['services'].find({}, {"role_service": 1, "_id": 0})
+        
+        role_services_set = {service["role_service"] for service in services if "role_service" in service}
+        
+        role_services = list(role_services_set)
+        
+        return role_services
+    except Exception as e:
+        logging.error(f"Erro ao buscar role_service na tabela services: {e}")
+        return []
+

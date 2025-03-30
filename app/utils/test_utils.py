@@ -53,6 +53,21 @@ def send_test_available_slots_menu(recipient_id, service_name, available_slots):
     }
     return response
 
+def send_test_available_employees_menu(recipient_id, available_slots):
+    """Simula o envio de um menu de horários disponíveis."""
+    buttons = []
+    for slot in available_slots:
+        buttons.append({
+            "id": f"employee {slot['name']}",
+            "title": f"{slot['name']}"
+        })
+    response = {
+        "recipient_id": recipient_id,
+        "type": "menu",
+        "available_slots": buttons
+    }
+    return response
+
 def send_test_confirmation_menu(sender_id, service_name, date, hour):
     """Simula o envio de um menu de confirmação."""
     response = {

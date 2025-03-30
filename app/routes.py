@@ -10,7 +10,10 @@ from app.handlers.appointment_handlers import (
     handle_cancel_appointment,
     handle_service_availability,
     handle_confirm_appointment,
-    handle_change_appointment
+    handle_change_appointment,
+    handle_get_employee,
+    handle_get_services,
+    handle_get_role_services
 )
 load_dotenv()
 
@@ -62,30 +65,36 @@ def webhook():
 
     except Exception as e:
         logging.error(f"Erro ao processar a requisição inicial: {e}")
-        return jsonify(send_test_message(sender_id, "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente mais tarde."))
-        #return jsonify(send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente mais tarde."))
+        # return jsonify(send_test_message(sender_id, "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente mais tarde."))
+        return jsonify(send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente mais tarde."))
 
     if incoming_msg:
         try:
             greetings = ["oi", "boa tarde", "bom dia", "boa noite", "ola", "olá"]
             cancel_keywords = ["cancelar", "desmarcar", "remover agendamento"]
-            keywords = ["agendar", "horário", "cabelo", "unha", "arrumar cabelo", "fazer unha"]
+            keywords = handle_get_role_services()
             update_keywords = ["alterar", "mudar", "trocar"]
-
             if any(greeting in incoming_msg.lower() for greeting in greetings):
-                reply = "Olá, eu sou o assistente do Studio X, como posso ajudar?"
+                reply = "Olá, eu sou o assistente X, como posso ajudar?"
                 return jsonify(send_whatsapp_message(sender_id, reply))
                 # return jsonify(send_test_message(sender_id, reply))
             elif any(keyword in incoming_msg.lower() for keyword in cancel_keywords):
                 return jsonify(handle_cancel_appointment(sender_id))
             elif any(keyword in incoming_msg.lower() for keyword in keywords):
                 service_name = next(keyword for keyword in keywords if keyword in incoming_msg.lower())
+                selected_slots["service_name"] = service_name
+                return jsonify(handle_get_employee(sender_id, service_name))
+            elif "employee" in incoming_msg.lower():
+                user_slots["employee"] = incoming_msg.split(" ", 1)[1] if " " in incoming_msg else ""
+                service_name = selected_slots["service_name"]
+                # Redirecionar para o menu de subserviços
                 return jsonify(send_subservices_menu(sender_id, service_name))
                 # return jsonify(send_test_subservices_menu(sender_id, service_name))
-            elif incoming_msg.lower() in ["corte", "serum", "escova", "unha_padrao", "alongamento"]:
+            elif incoming_msg.lower() in [service["name"].lower() for service in handle_get_services()]:
                 return jsonify(handle_service_availability(sender_id, incoming_msg.lower()))
             elif incoming_msg.lower() == "sim":
-                return jsonify(handle_confirm_appointment(sender_id, user_name))
+                employer_name = user_slots["employee"]
+                return jsonify(handle_confirm_appointment(sender_id, user_name, employer_name))
             elif any(keyword in incoming_msg.lower() for keyword in update_keywords):
                 return jsonify(handle_change_appointment(sender_id))
             else:

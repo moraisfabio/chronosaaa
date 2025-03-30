@@ -82,18 +82,24 @@ class MongoDBClient:
 
         return available_slots
 
-    def save_appointment(self, user_name, user_phone, service_name, service_value, service_time, date, hour):
-        collection = self.db['appointments']
-        appointment_data = {
-            "user_name": user_name,
-            "user_phone": user_phone,
-            "service_name": service_name,
-            "service_value": service_value,
-            "service_time": service_time,
-            "date": date,
-            "hour": hour
-        }
-        collection.insert_one(appointment_data)
+    def save_appointment(self, user_name, user_phone, service_name, service_value, service_time, date, hour, employee_name):
+        """Salva um agendamento no banco de dados."""
+        try:
+            appointment_data = {
+                "user_name": user_name,
+                "user_phone": user_phone,
+                "service_name": service_name,
+                "service_value": service_value,
+                "service_time": service_time,
+                "date": date,
+                "hour": hour,
+                "employee_name": employee_name
+            }
+            self.db['appointments'].insert_one(appointment_data)
+            logging.info(f"Agendamento salvo com sucesso: {appointment_data}")
+        except Exception as e:
+            logging.error(f"Erro ao salvar agendamento no MongoDB: {e}")
+            raise
 
     def get_appointment(self, sender_id):
         return self.db.appointments.find_one({"user_phone": sender_id})

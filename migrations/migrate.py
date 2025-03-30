@@ -36,6 +36,16 @@ def create_collections():
         print("Coleção 'work_shift' criada com sucesso!")
     else:
         print("Coleção 'work_shift' já existe. Nenhuma ação necessária.")
+    # Verifique se a coleção 'work_shift' já existe
+    if 'employee' not in db.list_collection_names():
+        work_shift = db['employee']
+        work_shift.insert_many([
+            {"name": "Fabio", "role": "cabelo"},
+            {"name": "Elane", "role": "manicure"},
+        ])
+        print("Coleção 'employee' criada com sucesso!")
+    else:
+        print("Coleção 'employee' já existe. Nenhuma ação necessária.")
     
     db.create_collection("appointments")
 

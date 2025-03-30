@@ -119,3 +119,35 @@ def send_confirmation_menu(sender_id, service_name, date, hour):
         {"title": "Voltar", "id": "voltar"}
     ]
     send_whatsapp_message(sender_id, message, options)
+
+def send_available_employees_menu(recipient_id, available_slots):
+    
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    message_body = "Escolha um colaborador:\n"
+
+    buttons = []
+    for slot in available_slots:
+        buttons.append({
+            "id": f"{slot['role']} {slot['name']} ",
+            "title": f"{slot['name'].capitalize()}"
+        })
+    data = {
+        "messaging_product": "whatsapp",
+        "to": recipient_id,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": {
+                "text": message_body
+            },
+            "action": {
+                "buttons": buttons
+            }
+        }
+    }
+   
+    response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
+    return response.json()
