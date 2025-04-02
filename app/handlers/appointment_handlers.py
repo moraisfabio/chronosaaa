@@ -59,14 +59,10 @@ def handle_service_availability(sender_id, service_name):
         return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao verificar os horários disponíveis. Tente novamente mais tarde.")
         # return send_test_message(sender_id, "Desculpe, ocorreu um erro ao verificar os horários disponíveis. Tente novamente mais tarde.")
 
-def handle_confirm_appointment(sender_id, user_name, selected_employee):
+def handle_confirm_appointment(sender_id, user_name, selected_employee, selected_date, selected_hour):
     try:
-        # Recuperar o horário selecionado e o colaborador escolhido
-        selected_slot = selected_slots.get(sender_id)
 
-        if selected_slot and selected_employee:
-            date = selected_slot["date"]
-            hour = selected_slot["time"]
+        if selected_employee:
             service_name = name_service.get(sender_id)
             service_value = mongo_client_caller.get_service_value(service_name)
             service_time = mongo_client_caller.get_service_time(service_name)
@@ -78,8 +74,8 @@ def handle_confirm_appointment(sender_id, user_name, selected_employee):
                 service_name=service_name,
                 service_value=service_value,
                 service_time=service_time,
-                date=date,
-                hour=hour,
+                date=selected_date,
+                hour=selected_hour,
                 employee_name=selected_employee
             )
 
@@ -88,10 +84,8 @@ def handle_confirm_appointment(sender_id, user_name, selected_employee):
             #     sender_id,
             #     f"Seu agendamento para {service_name} foi confirmado para {date} às {hour} com o profissional {selected_employee}. Obrigado e tenha um bom dia!"
             # )
-            return send_whatsapp_message(
-                sender_id,
-                f"Seu agendamento para {service_name} foi confirmado para {date} às {hour} com o profissional {selected_employee}. Obrigado e tenha um bom dia!"
-            )
+            message = f"Seu agendamento foi confirmado para {selected_date} às {selected_hour} com o profissional {selected_employee.capitalize()}. Obrigado e tenha um bom dia!"
+            return send_whatsapp_message(sender_id,message)
         else:
             # return send_test_message(sender_id, "Não foi possível confirmar o agendamento. Por favor, selecione um horário e um profissional primeiro.")
             return send_whatsapp_message(sender_id, "Não foi possível confirmar o agendamento. Por favor, selecione um horário e um profissional primeiro.")

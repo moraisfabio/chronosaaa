@@ -1,7 +1,7 @@
 from flask import Flask, Blueprint, request, jsonify
 from app.services.openai_service import OpenAIClient
 from app.services.mongo_service import MongoDBClient
-from app.utils.whatsapp_utils import send_whatsapp_message, send_subservices_menu, send_available_slots_menu
+from app.utils.whatsapp_utils import send_whatsapp_message, send_subservices_menu, send_available_slots_menu, send_confirmation_menu
 # from app.utils.test_utils import send_test_message, send_test_subservices_menu
 from dotenv import load_dotenv
 import os
@@ -13,7 +13,7 @@ from app.handlers.appointment_handlers import (
     handle_change_appointment,
     handle_get_employee,
     handle_get_services,
-    handle_get_role_services
+    handle_get_role_services,
 )
 load_dotenv()
 
@@ -101,57 +101,75 @@ def process_incoming_message(incoming_msg, sender_id, user_name):
             cancel_keywords = ["cancelar", "desmarcar", "remover agendamento"]
             keywords = handle_get_role_services()
             update_keywords = ["alterar", "mudar", "trocar"]
-            if isinstance(incoming_msg, dict) and 'button_reply' in incoming_msg:
-                # Capturar a escolha do botão
-                selected_option = incoming_msg['button_reply']['id']
-                # Verificar se é uma ação de navegação
-                user_slots["employee"] = selected_option
-                if selected_option in [service["name"] for service in handle_get_services()]:
-                    return jsonify(handle_service_availability(sender_id, incoming_msg))
-                logging.info(f"Usuário escolheu a opção: {selected_option}")
-                service_name = selected_slots["service_name"]
-                return jsonify(send_subservices_menu(sender_id, service_name))
-            elif 'list_reply' in incoming_msg:
-                # Capturar a escolha da lista
-                selected_option = incoming_msg['list_reply']['id']
-                print(f"selected_option: {selected_option}")
-                if selected_option.startswith("next_page_"):
-                    next_page = int(selected_option.split("_")[-1])
-                    return jsonify(send_available_slots_menu(sender_id, selected_slots["service_name"], selected_slots["available_slots"], page=next_page))
-                elif selected_option.startswith("previous_page_"):
-                    previous_page = int(selected_option.split("_")[-1])
-                    return jsonify(send_available_slots_menu(sender_id, selected_slots["service_name"], selected_slots["available_slots"], page=previous_page))
-                user_slots["employee"] = selected_option                
-                if selected_option in [service["name"] for service in handle_get_services()]:
-                    return jsonify(handle_service_availability(sender_id, incoming_msg))
-                logging.info(f"Usuário escolheu a opção da lista: {selected_option}")
-                service_name = selected_slots["service_name"]
-                # Redirecionar para o menu de subserviços
-                return jsonify(send_subservices_menu(sender_id, service_name))
-                # return jsonify(send_test_subservices_menu(sender_id, service_name)) 
+
+            if isinstance(incoming_msg, dict):
+                
+                if 'list_reply' in incoming_msg:
+                    selected_option = incoming_msg['list_reply']['id']
+                    if selected_option.startswith("employee_"): 
+                        user_slots["employee"] = selected_option.split("employee_")[1]                
+                        service_name = selected_slots["service_name"]
+                        return jsonify(send_subservices_menu(sender_id, service_name))
+                        # return jsonify(send_test_subservices_menu(sender_id, service_name)) 
+                    
+                    if selected_option.startswith("next_page_"):
+                        next_page = int(selected_option.split("_")[-1])
+                        return jsonify(send_available_slots_menu(sender_id, selected_slots["service_name"], selected_slots["available_slots"], page=next_page))
+                
+                    elif selected_option.startswith("previous_page_"):
+                        previous_page = int(selected_option.split("_")[-1])
+                        return jsonify(send_available_slots_menu(sender_id, selected_slots["service_name"], selected_slots["available_slots"], page=previous_page))
+                    
+                    if selected_option in [service["name"] for service in handle_get_services()]:
+                        return jsonify(handle_service_availability(sender_id, incoming_msg))
+                    
+                    if selected_option.startswith("slot_"):
+                        selected_data = selected_option.split("slot_")[1]
+                        selected_date, selected_hour = selected_data.split(" ")
+                        return jsonify(send_confirmation_menu(sender_id, selected_date, selected_hour))  
+                    logging.info(f"Usuário escolheu a opção da lista: {selected_option}")     
+                                  
+                if 'button_reply' in incoming_msg:
+                    selected_option = incoming_msg['button_reply']['id']
+                    if selected_option.startswith("confirmar_"):
+                        _, selected_date, selected_hour = selected_option.split("_")
+                        selected_employee = user_slots["employee"]
+                        return handle_confirm_appointment(sender_id, user_name, selected_employee, selected_date, selected_hour)
+
+                    elif selected_option == "voltar":
+                        # Voltar para a seleção de horários
+                        available_slots = selected_slots.get("available_slots", [])
+                        service_name = selected_slots.get("service_name", "Serviço")
+                        return send_available_slots_menu(sender_id, service_name, available_slots)
+                    
+                    logging.info(f"Usuário escolheu a opção: {selected_option}")                
+                
             # Process normal text messages
             if isinstance(incoming_msg, str):
+                
                 if any(greeting in incoming_msg.lower() for greeting in greetings):
-                    reply = "Olá, eu sou o assistente de agendamento, qual serviço deseja agendar?"
+                    reply = "Oi, eu sou o assistente de agendamento, qual serviço deseja agendar?"
                     return jsonify(send_whatsapp_message(sender_id, reply))
                     # return jsonify(send_test_message(sender_id, reply))
+                
                 elif any(keyword in incoming_msg.lower() for keyword in cancel_keywords):
                     return jsonify(handle_cancel_appointment(sender_id))
+               
                 elif any(keyword in incoming_msg.lower() for keyword in keywords):
                     service_name = next(keyword for keyword in keywords if keyword in incoming_msg.lower())
                     selected_slots["service_name"] = service_name
                     return jsonify(handle_get_employee(sender_id, service_name))                        
-                elif incoming_msg.lower() == "sim":
-                    employer_name = user_slots["employee"]
-                    return jsonify(handle_confirm_appointment(sender_id, user_name, employer_name))
+                
                 elif any(keyword in incoming_msg.lower() for keyword in update_keywords):
                     return jsonify(handle_change_appointment(sender_id))
+                
                 else:
                     reply = openai_client.get_assistant_response(incoming_msg)
                     return jsonify(send_whatsapp_message(sender_id, reply))
                     # return jsonify(send_test_message(sender_id, reply))
             else:
                 logging.warning("Message format not recognized.")
+                
                 return jsonify({"status": "Message format not recognized."}), 400
         except Exception as e:
             logging.error(f"Erro inesperado no processamento da mensagem: {e}")

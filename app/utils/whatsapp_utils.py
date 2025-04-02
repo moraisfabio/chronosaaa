@@ -106,7 +106,7 @@ def send_available_slots_menu(recipient_id, service_name, available_slots, page=
     rows = []
     for slot in current_page_slots:
         rows.append({
-            "id": f"{slot['date']} {slot['time']}",
+            "id": f"slot_{slot['date']} {slot['time']}",
             "title": f"{slot['date']} - {slot['time']}",
         })
 
@@ -164,13 +164,56 @@ def send_available_slots_menu(recipient_id, service_name, available_slots, page=
         logging.error(f"Erro ao enviar mensagem para {recipient_id}: {response.text}")
     return response.json()
 
-def send_confirmation_menu(sender_id, service_name, date, hour):
-    message = f"Você escolheu {service_name} para {date} às {hour}. Deseja confirmar o agendamento ou voltar para escolher outra data?"
-    options = [
-        {"title": "Confirmar", "id": f"confirmar {date} {hour}"},
-        {"title": "Voltar", "id": "voltar"}
+def send_confirmation_menu(sender_id, date, hour):
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    # Definir a mensagem de confirmação
+    message_body = f"Você escolheu a data {date} às {hour}. Deseja confirmar o agendamento ou voltar para escolher outra data?"
+
+    # Criar os botões
+    buttons = [
+        {
+            "type": "reply",
+            "reply": {
+                "id": f"confirmar_{date}_{hour}",
+                "title": "Confirmar"
+            }
+        },
+        {
+            "type": "reply",
+            "reply": {
+                "id": "voltar",
+                "title": "Voltar"
+            }
+        }
     ]
-    send_whatsapp_message(sender_id, message, options)
+
+    # Criar o payload da mensagem interativa
+    data = {
+        "messaging_product": "whatsapp",
+        "to": sender_id,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": {
+                "text": message_body
+            },
+            "action": {
+                "buttons": buttons
+            }
+        }
+    }
+
+    # Enviar a mensagem para a API do WhatsApp
+    response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
+    if response.status_code == 200:
+        logging.info(f"Mensagem de confirmação enviada com sucesso para {sender_id}.")
+    else:
+        logging.error(f"Erro ao enviar mensagem de confirmação para {sender_id}: {response.text}")
+    return response.json()
 
 def send_available_employees_menu(recipient_id, available_slots):
     headers = {
@@ -185,7 +228,7 @@ def send_available_employees_menu(recipient_id, available_slots):
     list_items = []
     for slot in available_slots:
         list_items.append({
-            "id": f"{slot['name']}",
+            "id": f"employee_{slot['name']}",
             "title": f"{slot['name'].capitalize()}",
         })
 
