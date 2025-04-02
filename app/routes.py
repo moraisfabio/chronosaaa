@@ -114,14 +114,19 @@ def process_incoming_message(incoming_msg, sender_id, user_name):
                     
                     if selected_option.startswith("next_page_"):
                         next_page = int(selected_option.split("_")[-1])
-                        return jsonify(send_available_slots_menu(sender_id, selected_slots["service_name"], selected_slots["available_slots"], page=next_page))
+                        available_slots = selected_slots["available_slots"]
+                        service_name = selected_slots["service_name"]
+                        return jsonify(send_available_slots_menu(sender_id, service_name, available_slots, page=next_page))
                 
                     elif selected_option.startswith("previous_page_"):
                         previous_page = int(selected_option.split("_")[-1])
-                        return jsonify(send_available_slots_menu(sender_id, selected_slots["service_name"], selected_slots["available_slots"], page=previous_page))
+                        available_slots = selected_slots["available_slots"]
+                        service_name = selected_slots["service_name"]
+                        return jsonify(send_available_slots_menu(sender_id, service_name, available_slots, page=previous_page))
                     
                     if selected_option in [service["name"] for service in handle_get_services()]:
-                        return jsonify(handle_service_availability(sender_id, incoming_msg))
+                        selected_slots["available_slots"] = handle_service_availability(sender_id, incoming_msg)
+                        return jsonify(send_available_slots_menu(sender_id, selected_slots["service_name"], selected_slots["available_slots"]))
                     
                     if selected_option.startswith("slot_"):
                         selected_data = selected_option.split("slot_")[1]
@@ -138,8 +143,8 @@ def process_incoming_message(incoming_msg, sender_id, user_name):
 
                     elif selected_option == "voltar":
                         # Voltar para a seleção de horários
-                        available_slots = selected_slots.get("available_slots", [])
-                        service_name = selected_slots.get("service_name", "Serviço")
+                        available_slots = selected_slots["available_slots"]
+                        service_name = selected_slots["service_name"]
                         return send_available_slots_menu(sender_id, service_name, available_slots)
                     
                     logging.info(f"Usuário escolheu a opção: {selected_option}")                

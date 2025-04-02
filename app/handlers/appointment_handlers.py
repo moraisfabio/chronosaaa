@@ -52,7 +52,7 @@ def handle_service_availability(sender_id, service_name):
         name_service[sender_id] = get_service_name
 
         # Enviar o menu interativo com os horários disponíveis
-        return send_available_slots_menu(sender_id, get_service_name, available_slots)
+        return  available_slots
         # return send_test_available_slots_menu(sender_id, service_name, available_slots)
     except Exception as e:
         logging.error(f"Erro ao verificar disponibilidade de horários: {e}")
