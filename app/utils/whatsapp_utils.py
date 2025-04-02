@@ -43,26 +43,34 @@ def send_subservices_menu(recipient_id, service):
     if service == "unha":
         service = "manicure"
     services = mongo_client_caller.db['services'].find({"role_service": {"$regex": service, "$options": "i"}})
-    buttons = []
+
+    list_items = []
     for svc in services:
-        buttons.append({
-            "type": "reply",
-            "reply": {
-                "id": svc["name"],
-                "title": f"{svc['name'].capitalize()} - {svc['value']} BRL - {svc['time']} min"
-            }
+        list_items.append({
+            "id": svc["name"],
+            "title": f"{svc['name'].capitalize()}",
         })
     data = {
         "messaging_product": "whatsapp",
         "to": recipient_id,
         "type": "interactive",
         "interactive": {
-            "type": "button",
+            "type": "list",
+            "header": {
+                "type": "text",
+                "text": f"Serviços disponíveis para {service.capitalize()}:"
+            },
             "body": {
-                "text": f"Por favor, escolha um subserviço de {service}:"
+                "text": f"Por favor, escolha um subserviço de {service.capitalize()}:"
             },
             "action": {
-                "buttons": buttons
+                "button": "Ver serviços",
+                "sections": [
+                    {
+                        "title": "Serviços Disponíveis",
+                        "rows": list_items
+                    }
+                ]
             }
         }
     }
@@ -73,38 +81,82 @@ def send_subservices_menu(recipient_id, service):
         logging.error(f"Erro ao enviar mensagem para {recipient_id}: {response.text}")
     return response.json()
 
-def send_available_slots_menu(recipient_id, service_name, available_slots):
+def send_available_slots_menu(recipient_id, service_name, available_slots, page=1):
     headers = {
         "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
-    
-    message_body = f"Aqui estão os horários disponíveis para o serviço {service_name.capitalize()}:\n"
 
-    buttons = []
-    for slot in available_slots:
-        buttons.append({
-            "type": "reply",
-            "reply": {
-                "id": f"{slot['date']} {slot['time']}",
-                "title": f"{slot['date']} - {slot['time']}"
-            }
+    # Definir o número máximo de itens por página
+    max_items_per_page = 8  # Reservar 2 itens para navegação (Próxima Página e Página Anterior)
+    total_pages = (len(available_slots) + max_items_per_page - 1) // max_items_per_page
+
+    # Calcular o índice inicial e final para a página atual
+    start_index = (page - 1) * max_items_per_page
+    end_index = start_index + max_items_per_page
+    current_page_slots = available_slots[start_index:end_index]
+
+    # Definir o texto do cabeçalho (limitar a 60 caracteres)
+    header_text = f"Horários disponíveis para {service_name}"
+    if len(header_text) > 60:
+        header_text = header_text[:57] + "..."
+    message_body = f"Aqui estão os horários disponíveis para o serviço {service_name}:\n"
+
+    # Criar os itens da lista
+    rows = []
+    for slot in current_page_slots:
+        rows.append({
+            "id": f"{slot['date']} {slot['time']}",
+            "title": f"{slot['date']} - {slot['time']}",
         })
+
+    # Adicionar opções de navegação
+    if page < total_pages:
+        rows.append({
+            "id": f"next_page_{page + 1}",
+            "title": "Próxima Página",
+            "description": f"Veja mais horários (Página {page + 1} de {total_pages})"
+        })
+    if page > 1:
+        rows.append({
+            "id": f"previous_page_{page - 1}",
+            "title": "Página Anterior",
+            "description": f"Voltar para a página {page - 1}"
+        })
+
+    # Garantir que o número total de itens não exceda 10
+    rows = rows[:10]
+
+    # Criar a seção principal
+    sections = [
+        {
+            "title": "Horários Disponíveis",
+            "rows": rows
+        }
+    ]
+
+    # Criar o payload da mensagem interativa
     data = {
         "messaging_product": "whatsapp",
         "to": recipient_id,
         "type": "interactive",
         "interactive": {
-            "type": "button",
+            "type": "list",
+            "header": {
+                "type": "text",
+                "text": header_text
+            },
             "body": {
                 "text": message_body
             },
             "action": {
-                "buttons": buttons
+                "button": "Ver horários",
+                "sections": sections
             }
         }
     }
 
+    # Enviar a mensagem para a API do WhatsApp
     response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
     if response.status_code == 200:
         logging.info(f"Mensagem enviada com sucesso para {recipient_id}.")
@@ -121,33 +173,52 @@ def send_confirmation_menu(sender_id, service_name, date, hour):
     send_whatsapp_message(sender_id, message, options)
 
 def send_available_employees_menu(recipient_id, available_slots):
-    
     headers = {
         "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
-    message_body = "Escolha um colaborador:\n"
 
-    buttons = []
+    # Definir o corpo da mensagem
+    message_body = "Escolha um colaborador disponível:\n"
+
+    # Criar os itens da lista
+    list_items = []
     for slot in available_slots:
-        buttons.append({
-            "id": f"{slot['role']} {slot['name']} ",
-            "title": f"{slot['name'].capitalize()}"
+        list_items.append({
+            "id": f"{slot['name']}",
+            "title": f"{slot['name'].capitalize()}",
         })
+
+    # Criar o payload da mensagem interativa
     data = {
         "messaging_product": "whatsapp",
         "to": recipient_id,
         "type": "interactive",
         "interactive": {
-            "type": "button",
+            "type": "list",
+            "header": {
+                "type": "text",
+                "text": "Colaboradores Disponíveis"
+            },
             "body": {
                 "text": message_body
             },
             "action": {
-                "buttons": buttons
+                "button": "Ver colaboradores",
+                "sections": [
+                    {
+                        "title": "Colaboradores",
+                        "rows": list_items
+                    }
+                ]
             }
         }
     }
-   
+
+    # Enviar a mensagem para a API do WhatsApp
     response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
+    if response.status_code == 200:
+        logging.info(f"Mensagem enviada com sucesso para {recipient_id}.")
+    else:
+        logging.error(f"Erro ao enviar mensagem para {recipient_id}: {response.text}")
     return response.json()
