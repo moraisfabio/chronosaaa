@@ -16,7 +16,7 @@ class OpenAIClient:
                 ]
             )
             # Acessar o conteúdo da resposta corretamente
-            return response['choices'][0]['message']['content']
+            return response.choices[0].message.content
         except Exception as e:
             # Registrar o erro e retornar uma mensagem amigável
             logging.error(f"Erro ao obter resposta do OpenAI: {e}")

@@ -22,12 +22,14 @@ class MongoDBClient:
         service = self.db.services.find_one({"name": service_name})
         return service["value"] if service else None
 
-    def check_availability(self, service_name, service_time):
+    def check_availability(self, service_name, service_time, collaborator_name):
+       
         # Obtenha o papel (role) do serviço
         role = self.get_service_role(service_name)
         if not role:
             return []
 
+        # Obter o turno de trabalho do colaborador
         work_shift_collection = self.db['work_shift']
         work_shift = work_shift_collection.find_one({"role": role})
         if not work_shift:
@@ -38,11 +40,11 @@ class MongoDBClient:
         available_slots = []
         current_date = datetime.now()
 
-        for day in range(7):
+        for day in range(7):  # Verificar os próximos 7 dias
             date = (current_date + timedelta(days=day)).strftime('%Y-%m-%d')
             day_start_time = start_time
 
-            if day == 0:
+            if day == 0:  # Ajustar o horário inicial para o dia atual
                 current_time = current_date.time()
                 if current_time > start_time.time():
                     day_start_time = datetime.combine(current_date.date(), current_time)
@@ -52,9 +54,10 @@ class MongoDBClient:
                 current_slot_start = datetime.strptime(f"{date} {day_start_time.strftime('%H:%M')}", "%Y-%m-%d %H:%M")
                 current_slot_end = current_slot_start + timedelta(minutes=service_time)
 
-                # Verifique se há conflitos com agendamentos existentes
+                # Verifique se há conflitos com agendamentos existentes para o colaborador
                 appointments = self.db['appointments'].find({
                     "date": date,
+                    "employee_name": collaborator_name,
                     "$or": [
                         {
                             "hour": {"$lt": current_slot_end.strftime("%H:%M")}
@@ -75,7 +78,7 @@ class MongoDBClient:
                         break
 
                 if slot_available:
-                    available_slots.append({"date": date, "time": day_start_time.strftime("%H:%M")})
+                    available_slots.append({"date": date, "time": day_start_time.strftime("%H:%M"), "employee": collaborator_name})
 
                 # Avance para o próximo horário disponível
                 day_start_time += timedelta(minutes=60)  # Avançar em incrementos de 60 minutos

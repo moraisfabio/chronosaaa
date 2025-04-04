@@ -1,11 +1,20 @@
 from flask import Flask, Blueprint, request, jsonify
 from app.services.openai_service import OpenAIClient
 from app.services.mongo_service import MongoDBClient
-from app.utils.whatsapp_utils import send_whatsapp_message, send_subservices_menu, send_available_slots_menu, send_confirmation_menu
-# from app.utils.test_utils import send_test_message, send_test_subservices_menu
+from app.utils.whatsapp_utils import (
+    send_whatsapp_message, 
+    send_subservices_menu, 
+    send_available_slots_menu, 
+    send_confirmation_menu, 
+    # deactivate_conversation, 
+    # activate_conversation,
+    send_day_slots_menu
+)
+
 from dotenv import load_dotenv
 import os
 import logging
+import time
 from app.handlers.appointment_handlers import (
     handle_cancel_appointment,
     handle_service_availability,
@@ -14,6 +23,7 @@ from app.handlers.appointment_handlers import (
     handle_get_employee,
     handle_get_services,
     handle_get_role_services,
+    handle_service_availabilit_for_employees
 )
 load_dotenv()
 
@@ -34,6 +44,8 @@ VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
 user_slots = {}
 name_service = {}
 selected_slots = {}
+active_conversations = {}
+last_interaction = {}
 
 routes_bp = Blueprint('routes', __name__)
 
@@ -92,8 +104,22 @@ def webhook():
         logging.error(f"Unexpected error: {e}")
         return jsonify({"error": "An unexpected error occurred."}), 500
 
+
 def process_incoming_message(incoming_msg, sender_id, user_name):
     service_name = None
+     # Verificar se a conversa está ativa e se o tempo de inatividade ultrapassou 30 segundos
+    # current_time = time.time()
+    # if sender_id in last_interaction:
+    #     time_elapsed = current_time - last_interaction[sender_id]
+    #     if time_elapsed > 60:
+    #         # Desativar a conversa e enviar mensagem ao cliente
+    #         send_whatsapp_message(sender_id, "Esta conversa foi encerrada. Por favor, inicie uma nova conversa enviando um 'oi' caso deseje realizar um agendamento.")
+    #         deactivate_conversation(sender_id)
+    #         active_conversations.clear()
+    #         return jsonify({"status": "Conversation deactivated."}), 200
+
+    # # Atualizar o timestamp da última interação
+    # last_interaction[sender_id] = current_time
 
     if incoming_msg:
         try:
@@ -102,15 +128,20 @@ def process_incoming_message(incoming_msg, sender_id, user_name):
             keywords = handle_get_role_services()
             update_keywords = ["alterar", "mudar", "trocar"]
 
+            # print(active_conversations)
+            # Verificar se a conversa está inativa e o cliente enviou "oi"
+            # if sender_id not in active_conversations:
+            #     activate_conversation(sender_id)
+            #     active_conversations["sender_id"] = sender_id
+            #     send_whatsapp_message(sender_id, "Conversa reativada! Como posso ajudá-lo? Por favor, informe o serviço que deseja agendar.")
+            #     return jsonify({"status": "Conversation reactivated."}), 200
             if isinstance(incoming_msg, dict):
-                
                 if 'list_reply' in incoming_msg:
                     selected_option = incoming_msg['list_reply']['id']
                     if selected_option.startswith("employee_"): 
                         user_slots["employee"] = selected_option.split("employee_")[1]                
                         service_name = selected_slots["service_name"]
                         return jsonify(send_subservices_menu(sender_id, service_name))
-                        # return jsonify(send_test_subservices_menu(sender_id, service_name)) 
                     
                     if selected_option.startswith("next_page_"):
                         next_page = int(selected_option.split("_")[-1])
@@ -125,7 +156,8 @@ def process_incoming_message(incoming_msg, sender_id, user_name):
                         return jsonify(send_available_slots_menu(sender_id, service_name, available_slots, page=previous_page))
                     
                     if selected_option in [service["name"] for service in handle_get_services()]:
-                        selected_slots["available_slots"] = handle_service_availability(sender_id, incoming_msg)
+                        selected_employee = user_slots["employee"]
+                        selected_slots["available_slots"] = handle_service_availability(sender_id, incoming_msg, selected_employee)
                         return jsonify(send_available_slots_menu(sender_id, selected_slots["service_name"], selected_slots["available_slots"]))
                     
                     if selected_option.startswith("slot_"):
@@ -147,15 +179,69 @@ def process_incoming_message(incoming_msg, sender_id, user_name):
                         service_name = selected_slots["service_name"]
                         return send_available_slots_menu(sender_id, service_name, available_slots)
                     
-                    logging.info(f"Usuário escolheu a opção: {selected_option}")                
-                
+                    selected_slots.clear()
+                    logging.info(f"Usuário escolheu a opção: {selected_option}")
+
             # Process normal text messages
             if isinstance(incoming_msg, str):
-                
+                if 'active' not in selected_slots and incoming_msg.lower() not in greetings:    
+                    services = handle_get_services() 
+                    role_name = None
+                    service_name = None
+                    for service in services:
+                        if service["role_service"].lower() in incoming_msg.lower():
+                            role_name = service["role_service"]
+                            service_name = service["name"]
+                            break    
+                    # Identificar o dia da semana mencionado
+                    days_of_week = {
+                        "segunda": 0,
+                        "terça": 1,
+                        "quarta": 2,
+                        "quinta": 3,
+                        "sexta": 4,
+                        "sábado": 5,
+                        "domingo": 6
+                    }
+                    day_of_week = next((day for day in days_of_week if day in incoming_msg.lower()), None)
+                    if service_name and day_of_week:
+                        # Converter o dia da semana para uma data específica
+                        today = time.localtime()
+                        target_date = None
+                        for i in range(7):
+                            potential_date = time.localtime(time.mktime(today) + i * 86400)  # Adiciona dias em segundos
+                            if potential_date.tm_wday == days_of_week[day_of_week]:
+                                target_date = time.strftime("%Y-%m-%d", potential_date)
+                                break
+
+                        if target_date:
+                            # Buscar horários disponíveis para o serviço e a data
+                            available_slots = handle_service_availabilit_for_employees(sender_id,service_name, role_name)
+                            # Filtrar os horários disponíveis para a data solicitada
+                            day_slots = [slot for slot in available_slots if isinstance(slot, dict) and slot.get("date") == target_date]
+                            if day_slots:
+                                # Enviar o menu interativo com os horários disponíveis
+                                return jsonify(send_day_slots_menu(sender_id, service_name, day_slots, target_date, day_of_week))
+                            else:
+                                # Caso não haja horários disponíveis, buscar o próximo dia com horários livres
+                                next_available_slot = next((slot for slot in available_slots if isinstance(slot, dict) and slot.get("date") > target_date), None)
+                                if next_available_slot:
+                                    next_date = next_available_slot["date"]
+                                    next_day_of_week = time.strftime("%A", time.strptime(next_date, "%Y-%m-%d"))
+                                    next_day_slots = [slot for slot in available_slots if slot.get("date") == next_date]
+
+                                    # Enviar o menu interativo com os horários do próximo dia disponível
+                                    return jsonify(send_day_slots_menu(sender_id, service_name, next_day_slots, next_date, next_day_of_week))
+                                else:
+                                    # Informar que não há horários disponíveis em nenhuma data futura
+                                    return jsonify(send_whatsapp_message(sender_id, f"Desculpe, não há horários disponíveis para {service_name.capitalize()} na {day_of_week.capitalize()} ({target_date}) ou em datas futuras."))
+                        else:
+                            # Informar que não foi possível identificar a data
+                            return jsonify(send_whatsapp_message(sender_id, "Desculpe, não consegui identificar a data solicitada. Por favor, tente novamente informando o dia da semana."))                
                 if any(greeting in incoming_msg.lower() for greeting in greetings):
+                    selected_slots["active"] = True
                     reply = "Oi, eu sou o assistente de agendamento, qual serviço deseja agendar?"
                     return jsonify(send_whatsapp_message(sender_id, reply))
-                    # return jsonify(send_test_message(sender_id, reply))
                 
                 elif any(keyword in incoming_msg.lower() for keyword in cancel_keywords):
                     return jsonify(handle_cancel_appointment(sender_id))
@@ -169,17 +255,17 @@ def process_incoming_message(incoming_msg, sender_id, user_name):
                     return jsonify(handle_change_appointment(sender_id))
                 
                 else:
-                    reply = openai_client.get_assistant_response(incoming_msg)
+                    # reply = openai_client.get_assistant_response(incoming_msg)
+                    reply = "Desculpe, não consegui entender sua mensagem. Você pode me ajudar a entender melhor? Por favor, digite o serviço que deseja para seguirmos com o agendamento."
                     return jsonify(send_whatsapp_message(sender_id, reply))
-                    # return jsonify(send_test_message(sender_id, reply))
             else:
                 logging.warning("Message format not recognized.")
                 
-                return jsonify({"status": "Message format not recognized."}), 400
+            return jsonify({"status": "Message format not recognized."}), 400
         except Exception as e:
             logging.error(f"Erro inesperado no processamento da mensagem: {e}")
             return jsonify(send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro inesperado. Tente novamente mais tarde."))
-            # return jsonify(send_test_message(sender_id, "Desculpe, ocorreu um erro inesperado. Tente novamente mais tarde."))
+
 
 if __name__ == '__main__':
     app.register_blueprint(routes_bp)

@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from app.services.mongo_service import MongoDBClient
 #from app.utils.test_utils import send_test_message, send_test_available_slots_menu, send_test_available_employees_menu
-from app.utils.whatsapp_utils import send_whatsapp_message, send_available_slots_menu, send_available_employees_menu
+from app.utils.whatsapp_utils import send_whatsapp_message, send_available_employees_menu, send_finish_message
 
 load_dotenv()
 # Inicialize o cliente MongoDB
@@ -28,24 +28,52 @@ def handle_cancel_appointment(sender_id):
             if appointment_date - current_time > timedelta(hours=48):
                 mongo_client_caller.delete_appointment(sender_id)
                 return send_whatsapp_message(sender_id, "Seu agendamento foi cancelado com sucesso.")
-                # return send_test_message(sender_id, "Seu agendamento foi cancelado com sucesso.")
             else:
                 return send_whatsapp_message(sender_id, "Desculpe, não é possível cancelar o agendamento com menos de 48 horas de antecedência.")
-                # return send_test_message(sender_id, "Desculpe, não é possível cancelar o agendamento com menos de 48 horas de antecedência.")
         else:
             return send_whatsapp_message(sender_id, "Você não possui nenhum agendamento para cancelar.")
-            # return send_test_message(sender_id, "Você não possui nenhum agendamento para cancelar.")
     except Exception as e:
         logging.error(f"Erro ao processar cancelamento de agendamento: {e}")
         return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao acessar os dados do agendamento. Tente novamente mais tarde.")
-        # return send_test_message(sender_id, "Desculpe, ocorreu um erro ao acessar os dados do agendamento. Tente novamente mais tarde.")
 
-def handle_service_availability(sender_id, service_name):
+def handle_service_availabilit_for_employees(sender_id, service_name, role_name):
+    
     try:
-        # Obter o tempo do serviço e os horários disponíveis
-        get_service_name = service_name['list_reply']['id']
+        # Obter os colaboradores que realizam o serviço
+        collaborators = mongo_client_caller.db['employee'].find({"role": {"$regex": role_name, "$options": "i"}})
+        if not collaborators:
+            logging.warning(f"Nenhum colaborador encontrado para o serviço: {role_name}")
+            return []
+
+        # Obter os horários disponíveis para cada colaborador
+        available_slots = []
+        for collaborator in collaborators:
+            service_time = mongo_client_caller.get_service_time(service_name)
+            collaborator_slots = mongo_client_caller.check_availability(service_name, service_time, collaborator["name"].lower())
+
+            for slot in collaborator_slots:
+                available_slots.append({
+                    "date": slot["date"],
+                    "time": slot["time"],
+                    "employee": collaborator["name"]
+                })
+
+        # Salvar os horários disponíveis no armazenamento temporário
+        user_slots[sender_id] = available_slots
+        name_service[sender_id] = service_name
+
+        # Retornar os horários disponíveis
+        return available_slots
+    except Exception as e:
+        logging.error(f"Erro ao verificar disponibilidade de horários: {e}")
+        return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao verificar os horários disponíveis. Tente novamente mais tarde.")
+
+def handle_service_availability(sender_id, service_name, collaborator_name):
+    try:
+
+        get_service_name = service_name.get('list_reply', {}).get('id')
         service_time = mongo_client_caller.get_service_time(get_service_name)
-        available_slots = mongo_client_caller.check_availability(get_service_name, service_time)
+        available_slots = mongo_client_caller.check_availability(get_service_name, service_time, collaborator_name)
 
         # Salvar os horários disponíveis no armazenamento temporário
         user_slots[sender_id] = available_slots
@@ -53,11 +81,9 @@ def handle_service_availability(sender_id, service_name):
 
         # Enviar o menu interativo com os horários disponíveis
         return  available_slots
-        # return send_test_available_slots_menu(sender_id, service_name, available_slots)
     except Exception as e:
         logging.error(f"Erro ao verificar disponibilidade de horários: {e}")
-        return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao verificar os horários disponíveis. Tente novamente mais tarde.")
-        # return send_test_message(sender_id, "Desculpe, ocorreu um erro ao verificar os horários disponíveis. Tente novamente mais tarde.")
+        return send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao verificar os horários disponíveis. Tente novamente mais tarde.")      
 
 def handle_confirm_appointment(sender_id, user_name, selected_employee, selected_date, selected_hour):
     try:
@@ -79,13 +105,8 @@ def handle_confirm_appointment(sender_id, user_name, selected_employee, selected
                 employee_name=selected_employee
             )
 
-            # Enviar mensagem de confirmação para o cliente
-            # return send_test_message(
-            #     sender_id,
-            #     f"Seu agendamento para {service_name} foi confirmado para {date} às {hour} com o profissional {selected_employee}. Obrigado e tenha um bom dia!"
-            # )
             message = f"Seu agendamento foi confirmado para {selected_date} às {selected_hour} com o profissional {selected_employee.capitalize()}. Obrigado e tenha um bom dia!"
-            return send_whatsapp_message(sender_id,message)
+            return send_finish_message(sender_id,message)
         else:
             # return send_test_message(sender_id, "Não foi possível confirmar o agendamento. Por favor, selecione um horário e um profissional primeiro.")
             return send_whatsapp_message(sender_id, "Não foi possível confirmar o agendamento. Por favor, selecione um horário e um profissional primeiro.")
@@ -104,12 +125,12 @@ def handle_change_appointment(sender_id):
             appointment_date = datetime.strptime(appointment_datetime_str, "%Y-%m-%d %H:%M")
             current_time = datetime.now()
 
-            # Verificar se o prazo é maior que 48 horas
-            if appointment_date - current_time > timedelta(hours=48):
+            # Verificar se o prazo é maior que 24 horas
+            if appointment_date - current_time > timedelta(hours=24):
                 # Obter o serviço e os horários disponíveis
                 service_name = appointment["service_name"]
                 service_time = mongo_client_caller.get_service_time(service_name)
-                available_slots = mongo_client_caller.check_availability(service_name, service_time)
+                available_slots = mongo_client_caller.check_availability(service_name, service_time, appointment["employee_name"])
 
                 # Salvar os horários disponíveis no armazenamento temporário
                 user_slots[sender_id] = available_slots
@@ -174,6 +195,7 @@ def handle_send_reminders_for_tomorrow():
 
 def handle_get_employee(sender_id, service_type):
     # Buscar colaboradores com o role correspondente
+    print(f"service_type: {service_type}")
     try:
         if service_type == "unha":
             service_type = "manicure"
