@@ -42,8 +42,8 @@ def send_whatsapp_message(recipient_id, message):
     else:
         logging.error(f"Erro ao enviar mensagem para {recipient_id}: {response.text}")
     return response.json()
+
 def send_finish_message(recipient_id, message):
-    
     headers = {
         "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
         "Content-Type": "application/json"
@@ -311,14 +311,31 @@ def send_day_slots_menu(recipient_id, service_name, day_slots, target_date, day_
         "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
-    # Definir o número máximo de itens por página
-    max_items_per_page = 8  # Reservar 2 itens para navegação (Próxima Página e Página Anterior)
-    total_pages = (len(day_slots) + max_items_per_page - 1) // max_items_per_page
+
+    # Agrupar os horários por colaborador
+    grouped_slots = {}
+    for slot in day_slots:
+        employee = slot.get("employee")
+        if employee not in grouped_slots:
+            grouped_slots[employee] = []
+        grouped_slots[employee].append(slot)
+
+    # Selecionar os 3 horários mais próximos para cada colaborador
+    filtered_slots = []
+    for employee, slots in grouped_slots.items():
+        # Ordenar os horários por data e hora
+        sorted_slots = sorted(slots, key=lambda x: (x["date"], x["time"]))
+        # Adicionar os 3 primeiros horários
+        filtered_slots.extend(sorted_slots[:3])
+
+    # Paginação
+    max_items_per_page = 10  # Limite máximo de itens por página
+    total_pages = (len(filtered_slots) + max_items_per_page - 1) // max_items_per_page
 
     # Calcular o índice inicial e final para a página atual
     start_index = (page - 1) * max_items_per_page
     end_index = start_index + max_items_per_page
-    current_page_slots = day_slots[start_index:end_index]
+    current_page_slots = filtered_slots[start_index:end_index]
 
     # Definir o texto do cabeçalho (limitar a 60 caracteres)
     header_text = f"Horários disponíveis para {service_name}"
@@ -330,9 +347,9 @@ def send_day_slots_menu(recipient_id, service_name, day_slots, target_date, day_
     rows = []
     for slot in current_page_slots:
         rows.append({
-            "id": f"slot_{slot['date']} {slot['time']}",
+            "id": f"slot_{slot['date']}_{slot['time']}_{slot['employee']}",
             "title": f"{slot['time']} com {slot['employee']}",
-            "description": f"Horário disponível em {target_date}"
+            "description": f"Horário disponível em {slot['date']}"
         })
 
     # Adicionar opções de navegação
@@ -348,9 +365,6 @@ def send_day_slots_menu(recipient_id, service_name, day_slots, target_date, day_
             "title": "Página Anterior",
             "description": f"Voltar para a página {page - 1}"
         })
-
-    # Garantir que o número total de itens não exceda 10
-    rows = rows[:10]
 
     # Criar a seção principal
     sections = [
@@ -381,7 +395,8 @@ def send_day_slots_menu(recipient_id, service_name, day_slots, target_date, day_
         }
     }
 
-    response = requests.post(WHATSAPP_API_URL, headers, json=data)
+    # Enviar a mensagem para a API do WhatsApp
+    response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
 
     if response.status_code == 200:
         logging.info(f"Menu de horários enviado com sucesso para {recipient_id}.")

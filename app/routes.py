@@ -162,7 +162,8 @@ def process_incoming_message(incoming_msg, sender_id, user_name):
                     
                     if selected_option.startswith("slot_"):
                         selected_data = selected_option.split("slot_")[1]
-                        selected_date, selected_hour = selected_data.split(" ")
+                        selected_date, selected_hour, selected_employee = selected_data.split("_")
+                        user_slots["employee"] = selected_employee
                         return jsonify(send_confirmation_menu(sender_id, selected_date, selected_hour))  
                     logging.info(f"Usuário escolheu a opção da lista: {selected_option}")     
                                   
@@ -170,7 +171,10 @@ def process_incoming_message(incoming_msg, sender_id, user_name):
                     selected_option = incoming_msg['button_reply']['id']
                     if selected_option.startswith("confirmar_"):
                         _, selected_date, selected_hour = selected_option.split("_")
-                        selected_employee = user_slots["employee"]
+                        selected_employee = user_slots.get("employee", None)
+                        if not selected_employee:
+                            logging.error("Colaborador não encontrado em user_slots após a confirmação.")
+                            return jsonify(send_whatsapp_message(sender_id, "Desculpe, ocorreu um erro ao processar sua solicitação. Tente novamente mais tarde."))
                         return handle_confirm_appointment(sender_id, user_name, selected_employee, selected_date, selected_hour)
 
                     elif selected_option == "voltar":
